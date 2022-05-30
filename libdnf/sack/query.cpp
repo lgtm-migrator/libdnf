@@ -1894,6 +1894,18 @@ Query::Impl::filterAdvisory(const Filter & f, Map *m, int keyname)
                 installed_solvables.push_back(pool_id2solvable(pool, installed_id));
             }
             std::sort(installed_solvables.begin(), installed_solvables.end(), NameArchSolvableComparator);
+            Id id = -1;
+            while ((id = resultPset->next(id)) != -1) {
+                Solvable * s = pool_id2solvable(pool, id);
+                // When doing HY_UPGRADE consider only candidate pkgs that have matching Name and Arch
+                // with some already installed pkg (in other words: some other version of the pkg is already installed).
+                // Otherwise a pkg with different Arch than installed can end up in upgrade set which is wrong.
+                // It can result in dependency issues, reported as: RhBug:2088149.
+                auto low = std::lower_bound(installed_solvables.begin(), installed_solvables.end(), s, NameArchSolvableComparator);
+                if (low != installed_solvables.end() && s->name == (*low)->name && s->arch == (*low)->arch) {
+                    candidates.push_back(s);
+                }
+            }
 
             Query obsoletes(sack, ExcludeFlags::IGNORE_EXCLUDES);
             obsoletes.addFilter(HY_PKG, HY_EQ, resultPset);
